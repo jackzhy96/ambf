@@ -70,35 +70,6 @@
 //-----------------------------------------------------------------------------
 
 #include <GLFW/glfw3.h>
-
-//-----------------------------------------------------------------------------
-
-#ifdef AF_ENABLE_OPEN_CV_SUPPORT
-#include <image_transport/image_transport.h>
-#include <opencv2/highgui/highgui.hpp>
-#include <cv_bridge/cv_bridge.h>
-#endif
-
-//-----------------------------------------------------------------------------
-#ifdef AF_ENABLE_AMBF_COMM_SUPPORT
-#include "ambf_server/Actuator.h"
-#include "ambf_server/Camera.h"
-#include "ambf_server/Light.h"
-#include "ambf_server/Object.h"
-#include "ambf_server/RigidBody.h"
-#include "ambf_server/Sensor.h"
-#include "ambf_server/Vehicle.h"
-#include "ambf_server/World.h"
-#endif
-
-//-----------------------------------------------------------------------------
-
-// Support for Depth Image to PointCloud2
-#ifdef AF_ENABLE_AMBF_COMM_SUPPORT
-#include "sensor_msgs/PointCloud2.h"
-#include "sensor_msgs/point_cloud2_iterator.h"
-#endif
-
 //-----------------------------------------------------------------------------
 
 #include <time.h>
@@ -255,6 +226,10 @@ public:
 
     void setIdentifier(string a_name){m_identifier = a_name;}
 
+    void setGlobalRemapIdx(string idx){m_globalRemapIdx = idx;}
+
+    string getGlobalRemapIdx(){return m_globalRemapIdx;}
+
 protected:
     // The namespace for this body, this namespace affect afComm and the stored name of the body
     // in the internal body tree map.
@@ -267,6 +242,8 @@ protected:
 
     // Type of object
     const afType m_type;
+
+    string m_globalRemapIdx;
 };
 
 
@@ -274,14 +251,6 @@ class afComm{
 public:
     afComm(){}
     virtual ~afComm(){}
-
-    virtual void afCreateCommInstance(afType type, string a_name, string a_namespace, int a_min_freq=50, int a_max_freq=2000, double time_out=0.5);
-
-    // This method is to retrieve all the commands for appropriate af comm instances.
-    virtual void fetchCommands(double dt=0.001);
-
-    //! This method applies updates Wall and Sim Time for State Message.
-    virtual void afUpdateTimes(const double a_wall_time, const double a_sim_time);
 
     // Check if object is active or passive for communication
     inline bool isPassive(){return m_passive;}
@@ -301,40 +270,21 @@ public:
     // Set Min publishing frequency for this object
     void setMinPublishFrequency(int freq);
 
+    inline double getCurrentTimeStamp(){return m_timeStamp;}
+
+    inline void setTimeStamp(double a_sec){m_timeStamp = a_sec;}
+
     // Override the Max Freq
     static void overrideMaxPublishingFrequency(int freq);
 
     // Override the Min Freq
     static void overrideMinPublishingFrequency(int freq);
 
-public:
+    static string getGlobalNamespacePrefix(){return s_global_namespace_prefix;}
 
-    // Flag to check if the any params have been set on the server for this comm instance
-    bool m_paramsSet=false;
-
-    // Counter for the times we have written to ambf_comm API
-    // This is only for internal use as it could be reset
-    unsigned short m_write_count = 0;
-
-    // Counter for the times we have read from ambf_comm API
-    // This is only for internal use as it could be reset
-    unsigned short m_read_count = 0;
-
-    //! AMBF ROS COMM
-#ifdef AF_ENABLE_AMBF_COMM_SUPPORT
-    std::shared_ptr<ambf_comm::Actuator> m_afActuatorCommPtr;
-    std::shared_ptr<ambf_comm::Camera> m_afCameraCommPtr;
-    std::shared_ptr<ambf_comm::Light> m_afLightCommPtr;
-    std::shared_ptr<ambf_comm::Object> m_afObjectCommPtr;
-    std::shared_ptr<ambf_comm::RigidBody> m_afRigidBodyCommPtr;
-    std::shared_ptr<ambf_comm::Sensor> m_afSensorCommPtr;
-    std::shared_ptr<ambf_comm::Vehicle> m_afVehicleCommPtr;
-    std::shared_ptr<ambf_comm::World> m_afWorldCommPtr;
-#endif
+    static void setGlobalNamespacePrefix(string a_namespace_prefix);
 
 private:
-
-
     // Min publishing frequency
     uint m_minPubFreq=50;
 
@@ -344,11 +294,13 @@ private:
     // If passive, this instance will not be reported for communication purposess.
     bool m_passive = false;
 
-    afType m_commType;
-
     static bool s_globalOverride;
     static int s_maxFreq;
     static int s_minFreq;
+
+    static string s_global_namespace_prefix;
+
+    double m_timeStamp = 0.0;
 };
 
 
@@ -586,14 +538,12 @@ public:
 
     virtual bool createFromAttribs(afBaseObjectAttributes* a_attribs);
 
-    virtual bool loadPlugins(vector<afPluginAttributes>* pluginAttribs);
-
-    // Method called by afComm to apply positon, force or joint commands on the afRigidBody
-    // In case the body is kinematic, only position cmds will be applied
-    virtual void fetchCommands(double){}
+    virtual bool loadPlugins(afBaseObjectPtr objPtr, afBaseObjectAttribsPtr attribs, vector<afPluginAttributes>* pluginAttribs);
 
     // The update method called at every simulation iteration.
     virtual void update(double dt);
+
+    virtual void reset();
 
     cVector3d getLocalPos();
 
@@ -602,6 +552,12 @@ public:
     cTransform getLocalTransform();
 
     cTransform getGlobalTransform();
+
+    double getWallTime();
+
+    double getSimulationTime();
+
+    virtual bool getVisibleFlag(){return m_visible;}
 
     // Get Initial Pose of this body
     inline cTransform getInitialTransform(){return m_initialTransform;}
@@ -622,11 +578,11 @@ public:
 
     void setLocalRot(double qx, double qy, double qz, double qw);
 
-    void setLocalTransform(const cTransform &trans);
-
-    void setLocalTransform(const afTransform &trans);
+    virtual void setLocalTransform(const cTransform &trans);
 
     bool setParentObject(afBaseObjectPtr a_afObject);
+
+    virtual void setVisibleFlag(bool val){m_visible = val;}
 
     void clearParentObject();
 
@@ -653,11 +609,15 @@ public:
 
     void removeAllChildSceneObjects(bool removeFromGraphs=true);
 
+    bool loadCommunicationPlugin(afBaseObjectPtr a_objPtr, afBaseObjectAttribsPtr a_attribs);
+
     virtual void updateSceneObjects();
 
     void pluginsGraphicsUpdate();
 
     void pluginsPhysicsUpdate(double dt);
+
+    void pluginsReset();
 
     virtual void updateGlobalPose(bool a_forceUpdate, cTransform a_parentTransform = cTransform());
 
@@ -697,6 +657,10 @@ protected:
     afBaseObjectPluginManager m_pluginManager;
 
     vector<afBaseObjectPtr> m_childrenObjects;
+
+private:
+    // Whether or not this object is visible
+    bool m_visible = false;
 };
 
 
@@ -909,7 +873,6 @@ protected:
 
     void addChildsSceneObjectsToWorld(afBaseObjectPtr a_object);
 
-    afObjectManager m_objectManager;
     afModelMap m_modelsMap;
     afWorldPtr m_afWorld;
 };
@@ -1003,7 +966,6 @@ protected:
     btVector3 m_inertia;
 };
 
-
 ///
 /// \brief The afBody class
 ///
@@ -1018,14 +980,12 @@ public:
     afRigidBody(afWorldPtr a_afWorld, afModelPtr a_modelPtr);
     virtual ~afRigidBody();
 
-    virtual void setLocalTransform(cTransform &trans);
-
-    // Method called by afComm to apply positon, force or joint commands on the afRigidBody
-    // In case the body is kinematic, only position cmds will be applied
-    virtual void fetchCommands(double dt);
+    virtual void setLocalTransform(const cTransform &trans);
 
     // This method updates the AMBF position representation from the Bullet dynamics engine.
     virtual void update(double dt);
+
+    virtual void reset();
 
     virtual bool createFromAttribs(afRigidBodyAttributes* a_attribs);
 
@@ -1082,14 +1042,6 @@ public:
     // Estimated Torque acting on body
     btVector3 m_estimatedTorque;
 
-protected:
-
-    // Name of visual and collision mesh
-    string m_mesh_name, m_collision_mesh_name;
-
-    // Iterator of connected rigid bodies
-    vector<afRigidBodyPtr>::const_iterator m_bodyIt;
-
     // Toggle publishing of joint positions
     bool m_publish_joint_positions = false;
 
@@ -1098,6 +1050,14 @@ protected:
 
     // Toggle publishing of joint names
     bool m_publish_joint_names = true;
+
+protected:
+
+    // Name of visual and collision mesh
+    string m_mesh_name, m_collision_mesh_name;
+
+    // Iterator of connected rigid bodies
+    vector<afRigidBodyPtr>::const_iterator m_bodyIt;
 
     // Sensors for this Rigid Body
     afSensorVec m_afSensors;
@@ -1226,7 +1186,7 @@ public:
 
     virtual void createInertialObject();
 
-    virtual void setLocalTransform(cTransform &trans);
+    virtual void setLocalTransform(const cTransform &trans);
 
     virtual void updateSceneObjects();
 
@@ -1270,10 +1230,6 @@ public:
     afGhostObject(afWorldPtr a_afWorld, afModelPtr a_modelPtr);
     virtual ~afGhostObject();
 
-    // Method called by afComm to apply positon, force or joint commands on the afRigidBody
-    // In case the body is kinematic, only position cmds will be applied
-    virtual void fetchCommands(double dt){}
-
     // This method updates the AMBF position representation from the Bullet dynamics engine.
     virtual void update(double dt);
 
@@ -1281,7 +1237,7 @@ public:
 
     virtual void createInertialObject();
 
-    virtual void setLocalTransform(cTransform &trans);
+    virtual void setLocalTransform(const cTransform &trans);
 
     // Cleanup this ghost body
     void remove();
@@ -1312,8 +1268,6 @@ public:
     virtual ~afJoint();
 
     virtual bool createFromAttribs(afJointAttributes* a_attribs);
-
-    virtual void fetchCommands(double);
 
     virtual void update(double dt);
 
@@ -1433,18 +1387,14 @@ public:
 
     virtual void enableVisualization(){}
 
-    // Toggle the debug display of the sensor
-    inline void toggleVisibility() {m_show = !m_show; }
-
     // Parent Body for this sensor
     afRigidBodyPtr m_parentBody;
 
-    virtual void fetchCommands(double){}
-
     virtual void update(double dt){}
 
+    afActuatorType m_actuatorType;
+
 protected:
-    bool m_show = false;
 
     double m_visibleSize = 0.002;
 
@@ -1500,9 +1450,9 @@ public:
     // Remove the constraint
     virtual void deactuate();
 
-    virtual void fetchCommands(double dt);
-
     virtual void update(double dt);
+
+    inline bool isActuated(){return m_active;}
 
 protected:
 
@@ -1536,9 +1486,6 @@ public:
 
     virtual bool createFromAttribs(afSensorAttributes* a_attribs){return false;}
 
-    // Toggle the debug display of the sensor
-    inline void toggleVisibility() {m_show = !m_show; }
-
     // Get the body this sensor is a child of
     inline afRigidBodyPtr getParentBody(){return m_parentBody;}
 
@@ -1548,12 +1495,7 @@ public:
     // The type this sensor?
     afSensorType m_sensorType;
 
-    // Toggle visibility of this sensor
-    bool m_show = true;
-
     bool m_visualizationEnabled = false;
-
-    virtual void fetchCommands(double dt);
 
     // Upate the sensor, usually called at each dynamic tick update of the physics engine
     virtual void update(double dt);
@@ -1580,6 +1522,8 @@ public:
 
     // Check if the sensor sensed something. Depending on what type of sensor this is
     inline bool isTriggered(uint idx){return m_rayTracerResults[idx].m_triggered;}
+
+    inline double getDepthFraction(uint idx){return m_rayTracerResults[idx].m_depthFraction;}
 
     // Get the type of sensed body
     inline afBodyType getSensedBodyType(uint idx){return m_rayTracerResults[idx].m_sensedBodyType;}
@@ -1626,8 +1570,6 @@ public:
     void enableVisualization();
 
     void visualize(bool show);
-
-    virtual void fetchCommands(double dt);
 
 
     double m_range;
@@ -1772,6 +1714,7 @@ public:
     inline uint getWidth(){return m_width;}
     inline uint getHeight(){return m_height;}
     inline uint getNumFields(){return m_numFields;}
+    float* getData(){return m_data;}
 
 protected:
     float *m_data = nullptr;
@@ -1858,6 +1801,8 @@ public:
 
     virtual void render(afRenderOptions &options);
 
+    virtual void updateGlobalPose(bool a_forceUpdate, cTransform a_parentTransform = cTransform());
+
     void renderSkyBox();
 
     void renderFrameBuffer();
@@ -1871,9 +1816,6 @@ public:
     void destroyWindow();
 
     // Define the virtual method for camera
-    virtual void fetchCommands(double dt);
-
-    // Define the virtual method for camera
     virtual void update(double dt);
 
     // Initialize
@@ -1884,6 +1826,8 @@ public:
     cCamera* getInternalCamera();
 
     virtual bool createFromAttribs(afCameraAttributes* a_attribs);
+
+    bool createWindow();
 
     bool assignWindowCallbacks(afCameraWindowCallBacks* a_callbacks);
 
@@ -1928,14 +1872,8 @@ public:
 
     void computeDepthOnGPU();
 
-    // Publish Image as a ROS Topic
-    void publishImage();
-
     // Publish Depth as a ROS Topic
     void computeDepthOnCPU();
-
-    // Publish Depth as Point Cloud
-    void publishDepthPointCloud();
 
     // Front plane scene graph which can be used to attach widgets.
     cWorld* getFrontLayer();
@@ -1945,6 +1883,8 @@ public:
 
     // Is this camera orthographic or not
     inline bool isOrthographic(){return m_orthographic;}
+
+    inline void setOrthographic(bool val){m_orthographic = val;}
 
     // Override the get Global Position method for camera
     cVector3d getGlobalPos();
@@ -1963,14 +1903,20 @@ public:
 
     cMesh* m_targetVisualMarker = nullptr;
 
+    double getRenderTimeStamp();
+
+    bool overrideRendering(){return m_overrideRenderingFlag;}
+
+    void setOverrideRendering(bool val){m_overrideRenderingFlag = val;}
+
 public:
     bool m_cam_pressed;
     GLFWwindow* m_window;
 
     static GLFWwindow* s_mainWindow;
-    static GLFWmonitor** s_monitors;
+    GLFWmonitor** m_monitors;
     GLFWmonitor* m_monitor;
-    static int s_numMonitors;
+    int m_numMonitors;
 
     cStereoMode m_stereoMode;
 
@@ -1992,7 +1938,6 @@ public:
 
     // Window parameters
     int m_width, m_height;
-    int m_win_x, m_win_y;
 
     vector<string> m_controllingDevNames;
 
@@ -2024,14 +1969,14 @@ public:
 
     std::map<afRigidBodyPtr, cShaderProgramPtr> m_shaderProgramBackup;
 
+    afNoiseModel* getDepthNoiseModel(){return &m_depthNoise;}
+
+    afDepthPointCloud* getDepthPointCloud(){return &m_depthPC;}
+
 protected:
     void createFrameBuffers(afImageResolutionAttribs* imageAttribs);
 
     void createPreProcessingShaders(afShaderAttributes* preprocessingShaderAttribs);
-
-    void createImageTransport();
-
-    void createDepthTransport(afImageResolutionAttribs* imageAttribs);
 
     void activatePreProcessingShaders();
 
@@ -2040,6 +1985,8 @@ protected:
     void preProcessingShadersUpdate();
 
 protected:
+
+    unsigned int m_monitorNumber = 0;
 
     bool m_frameBuffersCreated = false;
 
@@ -2055,36 +2002,6 @@ protected:
     static int s_numWindows;
     static int s_cameraIdx;
     static int s_windowIdx;
-
-#ifdef AF_ENABLE_OPEN_CV_SUPPORT
-protected:
-
-    // Open CV Image Matrix
-    cv::Mat m_imageMatrix;
-
-    // Image Transport CV Bridge Node
-    static image_transport::ImageTransport *s_imageTransport;
-
-    // Image Transport Publisher
-    image_transport::Publisher m_imagePublisher;
-
-    // Image Transport ROS Node
-    ros::NodeHandle* m_rosNode;
-
-#endif
-
-#ifdef AF_ENABLE_AMBF_COMM_SUPPORT
-    ambf_comm::ProjectionType m_projectionType;
-    ambf_comm::ViewMode m_viewMode;
-#endif
-
-    // Depth to Point Cloud Impl
-#ifdef AF_ENABLE_AMBF_COMM_SUPPORT
-    sensor_msgs::PointCloud2::Ptr m_depthPointCloudMsg;
-    sensor_msgs::PointCloud2Modifier* m_depthPointCloudModifier = nullptr;
-    ros::Publisher m_depthPointCloudPub;
-#endif
-
 private:
 
     // Hold the cCamera private and shield it's kinematics represented
@@ -2129,6 +2046,13 @@ private:
 
     afShaderAttributes m_preprocessingShaderAttribs;
     cShaderProgramPtr m_preprocessingShaderProgram;
+
+    double m_renderTimeStamp=0.0;
+
+    // Flag to skip rendering from this camera in the world::render method
+    // The current application is for a plugin that wants to take control
+    // of rendering from the camera.
+    bool m_overrideRenderingFlag;
 };
 
 
@@ -2141,21 +2065,20 @@ public:
 
     virtual bool createFromAttribs(afLightAttributes* a_attribs);
 
-    virtual void fetchCommands(double dt);
-
     virtual void update(double dt);
+
+    inline double getCutOffAngle(){return cDegToRad(m_spotLight->getCutOffAngleDeg());}
 
     // Set direction of this light
     void setDir(const cVector3d& a_direction);
+
+    void setCutOffAngle(double rad);
 
     cGenericLight* getInternalLight();
 
 protected:
     cSpotLight* m_spotLight;
 
-#ifdef AF_ENABLE_AMBF_COMM_SUPPORT
-    ambf_comm::LightType m_lightType;
-#endif
 };
 
 
@@ -2166,19 +2089,15 @@ class afPointCloud: public afBaseObject{
 public:
     afPointCloud(afWorldPtr a_afWorld);
 
+    ~afPointCloud();
+
     cMultiPointPtr m_mpPtr;
 
     int m_mpSize = 0;
 
-    virtual void fetchCommands(double){}
-
     virtual void update(double dt);
 
     std::string m_topicName;
-
-#ifdef AF_ENABLE_AMBF_COMM_SUPPORT
-    ambf_comm::PointCloudHandlerPtr m_pcCommPtr;
-#endif
 };
 
 
@@ -2189,8 +2108,6 @@ struct afRenderOptions{
     string m_IIDModeStr = "";
     string m_IIDBtnActionStr = "";
 };
-
-
 //-----------------------------------------------------------------------------
 
 ///
@@ -2201,14 +2118,13 @@ class afWorld: public afIdentification, public afComm, public afModelManager{
     friend class afModel;
 
 public:
-
-    afWorld(string a_global_namespace);
+    afWorld();
 
     virtual ~afWorld();
 
     virtual bool createFromAttribs(afWorldAttributes* a_attribs);
 
-    virtual bool loadPlugins(vector<afPluginAttributes>* pluginAttribs);
+    virtual bool loadPlugins(afWorldPtr worldPtr, afWorldAttribsPtr attribs, vector<afPluginAttributes>* pluginAttribs);
 
     virtual void render(afRenderOptions &options);
 
@@ -2241,9 +2157,13 @@ public:
 
     int getManualSteps(){return m_manualStepPhx;}
 
+    bool loadCommunicationPlugin(afWorldPtr, afWorldAttribsPtr);
+
     void resetCameras();
 
-    void resetDynamicBodies(bool reset_time=false);
+    void resetDynamicBodies();
+
+    void reset();
 
     void setGravity(afVector3d &vec);
 
@@ -2270,6 +2190,8 @@ public:
     // This method returns the current simulation time
     double getSimulationTime(){return m_simulationTime;}
 
+    double getSystemTime(){return chrono::duration<double>(chrono::system_clock::now().time_since_epoch()).count();}
+
     // This method gets the time difference between current time and last simulation time
     double getSimulationDeltaTime();
 
@@ -2287,6 +2209,8 @@ public:
 
     void pluginsPhysicsUpdate(double dt);
 
+    void pluginsReset();
+
     void addSceneObjectToWorld(cGenericObject* a_cObject);
 
     void removeSceneObjectFromWorld(cGenericObject* a_cObject);
@@ -2294,14 +2218,6 @@ public:
     // This method build the collision graph based on the collision group numbers
     // defined in the bodies
     void buildCollisionGroups();
-
-    string resolveGlobalNamespace(string a_name);
-
-    string getGlobalNamespace(){return m_global_namespace;}
-
-    void setGlobalNamespace(string a_namespace);
-
-    virtual void fetchCommands(double dt);
 
     bool pickBody(const cVector3d& rayFromWorld, const cVector3d& rayToWorld);
 
@@ -2316,6 +2232,18 @@ public:
     void runHeadless(bool value);
 
     bool isHeadless();
+
+    int getPhysicsFrequency(){return m_physicsFreq;}
+
+    int getNumDevices(){return m_numDevices;}
+
+    void setResetFlag(){m_resetFlag = true;}
+
+    void clearResetFlag(){m_resetFlag = false;}
+
+    void setResetBodiesFlag(){m_resetBodiesFlag = true;}
+
+    void clearResetBodiesFlag(){m_resetBodiesFlag = false;}
 
 public:
 
@@ -2419,10 +2347,6 @@ public:
 
 protected:
 
-    // If this string is set, it will force itself to preeced all nampespaces
-    // regardless of whether any namespace starts with a '/' or not.
-    string m_global_namespace;
-
     // Current time of simulation.
     double m_simulationTime;
 
@@ -2439,6 +2363,10 @@ protected:
     int m_integrationMaxIterations;
 
     afWorldPluginManager m_pluginManager;
+
+    int m_physicsFreq = 0;
+
+    int m_numDevices = 0;
 
 private:
 
@@ -2460,6 +2388,10 @@ private:
     cWorld* m_chaiWorld = nullptr;
 
     bool m_headless = false;
+
+    bool m_resetFlag = false;
+
+    bool m_resetBodiesFlag = false;
 };
 
 
@@ -2489,11 +2421,11 @@ public:
 
     virtual bool createFromAttribs(afModelAttributes* a_attribs);
 
-    virtual bool loadPlugins(vector<afPluginAttributes>* pluginAttribs);
-
-    virtual void fetchCommands(double dt);
+    virtual bool loadPlugins(afModelPtr modePtr, afModelAttribsPtr attribs, vector<afPluginAttributes>* pluginAttribs);
 
     virtual void update(double dt);
+
+    virtual void reset();
 
     virtual void updateGlobalPose();
 
@@ -2506,6 +2438,8 @@ public:
     void pluginsGraphicsUpdate();
 
     void pluginsPhysicsUpdate(double dt);
+
+    void pluginsReset();
 
     // We can have multiple bodies connected to a single body.
     // There isn't a direct way in bullet to disable collision
@@ -2561,7 +2495,25 @@ public:
 
     virtual void update(double dt);
 
-    virtual void fetchCommands(double dt);
+    inline int getWheelCount(){return m_numWheels;}
+
+    btRaycastVehicle* getInternalVehicle(){return m_vehicle;}
+
+    afWheelAttributes& getWheelAttribs(int i){return m_wheelAttribs[i];}
+
+    void engageBrake();
+
+    void releaseBrake();
+
+    void setWheelBrake(int i, double p);
+
+    void setWheelPower(int i, double p);
+
+    void setWheelSteering(int i, double s);
+
+    void setChassisForce(btVector3 force);
+
+    void setChassisTorque(btVector3 torque);
 
 protected:
     btDefaultVehicleRaycaster* m_vehicleRayCaster = nullptr;
@@ -2584,7 +2536,11 @@ public:
 
     virtual void update(double dt);
 
-    virtual void fetchCommands(double dt);
+    virtual void updateSceneObjects();
+
+    virtual void reset();
+
+    void resetTextures();
 
     virtual cShaderProgramPtr getShaderProgram();
 
@@ -2596,6 +2552,34 @@ public:
 
     cVoxelObject* getInternalVolume();
 
+    cVector3d getDimensions();
+
+    cVector3d getVoxelCount();
+
+    cVector3d getResolution();
+
+    // Get the idx of a voxel given a position in local volume coordinates
+    bool localPosToVoxelIndex(cVector3d& pos, cVector3d& idx);
+
+    // Get the position in location volume coordinates give a voxel index
+    bool voxelIndexToLocalPos(cVector3d& idx, cVector3d& pos);
+
+    // Pos in voxel's local space. NOT IN WORLD SPACE
+    bool getVoxelValue(cVector3d& pos, cColorb& color);
+
+    // Set a voxel RGBA value by specifying position in voxel's local space
+    bool setVoxelValue(cVector3d& pos, cColorb& val);
+
+    void backupTexture();
+
+    void restoreTexture();
+
+    static cTexture3dPtr copy3DTexture(cTexture1dPtr tex3D);
+
+    void setResetFlag(){m_resetFlag = true;}
+
+    void clearResetFlag(){m_resetFlag = false;}
+
 protected:
     afVolumeAttributes m_attribs;
     cVoxelObject* m_voxelObject;
@@ -2604,6 +2588,18 @@ protected:
 private:
     int m_previousRenderingMode=0;
     bool m_prevLinearInterpolationFlag=false;
+
+    cTexture3dPtr m_backupTexture;
+    cTexture3dPtr m_originalTextureCopy;
+
+    // The initial values of min and max pos coordiantes of the volume AABB.
+    // Storing this as the corners can be changed at runtime to render only
+    // a sub block of the volume.
+    cVector3d m_minCornerInitial;
+    cVector3d m_maxCornerInitial;
+
+    // Should not reset the volume from physics thread, only from graphics thread. This flag is for that purpose.
+    bool m_resetFlag;
 };
 
 

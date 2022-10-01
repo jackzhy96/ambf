@@ -37,7 +37,4 @@
 #  $Date:  $
 #  $Rev:  $
 
-
-add_subdirectory(simulator_example)
-add_subdirectory(world_example)
-add_subdirectory(volumetric_drilling)
+add_subdirectory(examples)

@@ -43,37 +43,6 @@
 #include "ambf_server//WorldRosCom.h"
 
 ///
-/// \brief PointCloundHandler::init
-/// \param a_node
-/// \param a_topic_name
-///
-void PointCloundHandler::init(ros::NodeHandle* a_node, std::string a_topic_name){
-    m_pcSub = a_node->subscribe(a_topic_name, 5, &PointCloundHandler::sub_cb, this);
-}
-
-
-///
-/// \brief PointCloundHandler::sub_cb
-/// \param msg
-///
-void PointCloundHandler::sub_cb(sensor_msgs::PointCloudPtr msg){
-    m_StatePtr = msg;
-}
-
-
-sensor_msgs::PointCloudPtr PointCloundHandler::get_point_cloud(){
-    return m_StatePtr;
-}
-
-
-void PointCloundHandler::remove(){
-//    m_StatePtr->points.clear();
-//    m_StatePtr->channels.clear();
-    m_pcSub.shutdown();
-}
-
-
-///
 /// \brief WorldRosCom::WorldRosCom
 /// \param a_name
 /// \param a_namespace
@@ -93,9 +62,13 @@ void WorldRosCom::init(){
     m_State.sim_step = 0;
     m_enableSimThrottle = false;
     m_stepSim = true;
+    m_resetFlag = false;
+    m_resetBodiesFlag = false;
 
     m_pub = nodePtr->advertise<ambf_msgs::WorldState>("/" + m_namespace + "/" + m_name + "/State", 10);
     m_sub = nodePtr->subscribe("/" + m_namespace + "/" + m_name + "/Command", 10, &WorldRosCom::sub_cb, this);
+    m_resetSub = nodePtr->subscribe("/" + m_namespace + "/" + m_name + "/Command/Reset", 1, &WorldRosCom::reset_cb, this);
+    m_resetBodiesSub = nodePtr->subscribe("/" + m_namespace + "/" + m_name + "/Command/Reset/Bodies", 1, &WorldRosCom::reset_bodies_cb, this);
 
     m_thread = boost::thread(boost::bind(&WorldRosCom::run_publishers, this));
     std::cerr << "INFO! Thread Joined: " << m_name << std::endl;
@@ -129,4 +102,19 @@ void WorldRosCom::sub_cb(ambf_msgs::WorldCmdConstPtr msg){
             m_stepSim = true;
     }
     m_watchDogPtr->acknowledge_wd();
+}
+
+
+///
+/// \brief WorldRosCom::reset_cb
+///
+void WorldRosCom::reset_cb(std_msgs::EmptyConstPtr){
+    m_resetFlag = true;
+}
+
+///
+/// \brief WorldRosCom::reset_bodies_cb
+///
+void WorldRosCom::reset_bodies_cb(std_msgs::EmptyConstPtr){
+    m_resetBodiesFlag = true;
 }

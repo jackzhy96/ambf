@@ -141,9 +141,9 @@ class BaseObject(WatchDog):
         quat = self._state.pose.orientation
         explicit_quat = [quat.x, quat.y, quat.z, quat.w]
         # Edited python3 code
-        rpy = euler_from_quaternion(explicit_quat, 'szyx')
+        rpy = euler_from_quaternion(explicit_quat)
         # Initial python2 code
-        # rpy = transformations.euler_from_quaternion(explicit_quat, 'szyx')
+        # rpy = transformations.euler_from_quaternion(explicit_quat)
         pose = [self._state.pose.position.x,
                 self._state.pose.position.y,
                 self._state.pose.position.z,
@@ -185,6 +185,34 @@ class BaseObject(WatchDog):
         :return:
         """
         return self._state.parent_name
+
+    def get_msg_header(self):
+        """
+        Get the message header
+        :return:
+        """
+        return self._state.header
+
+    def get_msg_time_stamp(self):
+        """
+        Get the time stamp
+        :return:
+        """
+        return self._state.header.stamp
+
+    def get_msg_seq_num(self):
+        """
+        Get the sequence number
+        :return:
+        """
+        return self._state.header.seq
+
+    def get_msg_frame_id(self):
+        """
+        Get the frame id
+        :return:
+        """
+        return self._state.header.frame_id
 
     def set_name(self, name):
         """

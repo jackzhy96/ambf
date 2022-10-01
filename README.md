@@ -1,5 +1,14 @@
 # Asynchronous Multi-Body Framework (AMBF)
-### 1. Author: [Adnan Munawar](https://github.com/adnanmunawar) (amunawar@wpi.edu)
+
+Author: [Adnan Munawar](https://github.com/adnanmunawar) (amunawar@wpi.edu)
+
+
+#### Build Status  
+
+![ambf-2.0](https://github.com/WPI-AIM/ambf/workflows/ambf-2.0/badge.svg?branch=ambf-2.0)
+
+### 1. [Discussions](https://github.com/WPI-AIM/ambf/discussions):
+Please checkout the [discussions](https://github.com/WPI-AIM/ambf/discussions) tab for questions, suggestions and connecting with the community.
 
 
 ### 2. [Wiki](https://github.com/WPI-AIM/ambf/wiki):
@@ -17,7 +26,7 @@ external tools that include an extended version of CHAI-3D (developed alongside 
 
 ### 4. Usage:
 #### 4.1 Tested Platforms:
-AMBF has been tested on **Ubuntu 16.04** and **Ubuntu 18.04**. We need a few extra steps on **Ubuntu 14.04**, please create an issue if you would like to get instructions for that.
+AMBF has been tested on **Ubuntu 16.04**, **Ubuntu 18.04** and **Ubuntu 20.04**. We need a few extra steps on **Ubuntu 14.04**, please create an issue if you would like to get instructions for that.
 
 Even though it is recommended to use Linux for the full feature set of AMBF Simulator using ROS, AMBF has been tested on **MacOS Maverick** and **MacOS Mojave** without ROS support.
 
@@ -213,18 +222,9 @@ To subscribe and publish data using AMBF over multiple machines, the following s
 6. Open a terminal and type the command:  `sudo apt-get install gufw`
 7. Next type `sudo gufw` (type the password when prompted) and ensure both the Incoming and Outgoing traffic is allowed.
 
-### 9 Docker
-In order to use the docker file, follow the instructions [here](https://docs.docker.com/install/) to install docker on your system. To run the file:  
+### 9 Docker with visualization
 
-```bash
-cd ~/
-git clone https://github.com/WPI-AIM/ambf.git && cd ambf
-sudo service docker start
-docker build --rm -f "Dockerfile" -t ambf:latest "."
-docker run --rm -it  ambf:latest
-cd /ambf/bin/lin-x86_64/
-./ambf_simulator -g off
-```
+Please follow these [instructions](https://github.com/collaborative-robotics/docker-ambf).
 
 ## Citation
 If this work is helpful for your research, please use the following reference for citation:

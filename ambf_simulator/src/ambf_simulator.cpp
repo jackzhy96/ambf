@@ -98,7 +98,7 @@ struct CommandLineOptions{
     // Control whether to run headless or not
     bool showGUI; //
     // Override the default world namespace
-    std::string prepend_namespace;
+    std::string namespace_prefix;
     // The running speed of the simulation. 1.0 indicates a stepping of one second.
     double simulation_speed;
 
@@ -126,14 +126,15 @@ bool g_simulationFinished = true;
 // Flag to toggle between inverted/non_inverted mouse pitch with mouse
 bool g_mouse_inverted_y = false;
 
-// Ratio between Window Height and Width to Frame Buffer Height and Width
-double g_winWidthRatio = 1.0;
-
 double g_winHeightRatio = 1.0;
 
 bool g_enableGrippingAssist = true;
 
 bool g_enableNormalMapping = true;
+
+bool g_resetFlag = false;
+
+bool g_bodiesResetFlag = false;
 
 // haptic thread
 std::vector<cThread*> g_hapticsThreads;
@@ -246,7 +247,7 @@ int main(int argc, char* argv[])
             ("override_max_comm_freq", p_opt::value<int>(), "Override the maximum publishing frequency for all afObjects (default: 1000 Hz)")
             ("override_min_comm_freq", p_opt::value<int>(), "Override the minimum publishing frequency for all afObjects (default: 50 Hz)")
             ("show_gui,g", p_opt::value<bool>()->default_value(true), "Show GUI")
-            ("ns", p_opt::value<std::string>()->default_value(""), "Override the default (or specified in ADF) world namespace")
+            ("ns", p_opt::value<std::string>()->default_value(""), "Global namespace prefix for ROS Communication")
             ("sim_speed_factor,s", p_opt::value<double>()->default_value(1.0), "Override the speed of \"NON REAL-TIME\" simulation by a specified factor (Default 1.0)")
             ("plugins,", p_opt::value<std::string>()->default_value(""), "Simulator plugins to load, .e.g. "
                                                                 "--plugins <plugin1_filepath>, <plugin2_filepath> loads plugin1 and plugin2 simualtor plugin")
@@ -271,7 +272,7 @@ int main(int argc, char* argv[])
     g_cmdOpts.useFixedHtxTimeStep = var_map["fixed_htx_timestep"].as<bool>();
     g_cmdOpts.enableForceFeedback = var_map["enableforces"].as<bool>();
     g_cmdOpts.showGUI = var_map["show_gui"].as<bool>();
-    g_cmdOpts.prepend_namespace = var_map["ns"].as<std::string>();
+    g_cmdOpts.namespace_prefix = var_map["ns"].as<std::string>();
     g_cmdOpts.simulation_speed = var_map["sim_speed_factor"].as<double>();
     g_cmdOpts.simulator_plugins = var_map["plugins"].as<std::string>();
 
@@ -353,6 +354,8 @@ int main(int argc, char* argv[])
         }
     }
 
+    cerr << "GLFW VERSION: " << glfwGetVersionString() << endl;
+
 
     //-----------------------------------------------------------------------
     // 3D - SCENEGRAPH
@@ -394,7 +397,8 @@ int main(int argc, char* argv[])
     g_adfLoaderPtr->loadTeleRoboticUnitsAttribs(launchAttribs.m_inputDevicesFilepath.c_str(), &tuAttribs, devIndexes);
 
     // create a dynamic world.
-    g_afWorld = new afWorld(g_cmdOpts.prepend_namespace);
+    afComm::setGlobalNamespacePrefix(g_cmdOpts.namespace_prefix);
+    g_afWorld = new afWorld();
     g_afWorld->m_physicsFrequency = g_cmdOpts.phxFrequency;
     g_afWorld->m_hapticsFrequency = g_cmdOpts.htxFrequency;
     g_afWorld->m_updateCounterLimit = g_cmdOpts.phxFrequency * 2;
@@ -458,7 +462,9 @@ int main(int argc, char* argv[])
 
     // Temporary fix for OpenGL Error Invalid Operation
     for (auto cam : g_afWorld->getCameras()){
-        glfwMakeContextCurrent(cam->m_window);
+        if (cam->getVisibleFlag()){
+            glfwMakeContextCurrent(cam->m_window);
+        }
     }
 
     // Load plugins.
@@ -522,15 +528,6 @@ int main(int argc, char* argv[])
 
     // Compute the window width and height ratio
     if (g_cmdOpts.showGUI){
-        int winH, winW;
-        glfwGetWindowSize(g_afWorld->getCameras()[0]->m_window, &winW, &winH);
-
-        int buffH, buffW;
-        glfwGetFramebufferSize(g_afWorld->getCameras()[0]->m_window, &buffW, &buffH);
-
-        g_winWidthRatio = double(buffW) / double(winW);
-        g_winHeightRatio = double(buffH) / double(winH);
-
         // Load the skybox if defined.
         g_afWorld->loadSkyBox();
 
@@ -615,6 +612,16 @@ void updatePhysics(){
     torque_prev.set(0, 0, 0);
     while(g_simulationRunning)
     {
+        if (g_resetFlag){
+            g_afWorld->reset();
+            g_pluginManager.reset();
+            g_resetFlag = false;
+        }
+
+        if (g_bodiesResetFlag){
+            g_afWorld->resetDynamicBodies();
+            g_bodiesResetFlag = false;
+        }
         g_afWorld->m_freqCounterHaptics.signal(1);
 
         // Take care of any picked body by mouse
@@ -719,7 +726,9 @@ void updatePhysics(){
             }
         }
         g_afWorld->updateDynamics(step_size, g_afWorld->g_wallClock.getCurrentTimeSeconds(), g_afWorld->m_freqCounterHaptics.getFrequency(), g_inputDevices->m_numDevices);
-        g_pluginManager.physicsUpdate(step_size);
+        if (!g_afWorld->isPhysicsPaused()){
+                g_pluginManager.physicsUpdate(step_size);
+        }
         phxSleep.sleep();
     }
     g_simulationFinished = true;
@@ -1071,8 +1080,8 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
         // MODS IF THE CTRL KEY IS PRESSED
         // option - If CTRL R is pressed, reset the simulation
         if (a_key == GLFW_KEY_R){
-            printf("Resetting the Simulation\n");
-            g_afWorld->resetDynamicBodies();
+            printf("Setting bodies reset flag\n");
+            g_bodiesResetFlag = true;
 
             // Reset the clutched position of all Physical devices to their
             // simulated dynamic end-effectors
@@ -1147,6 +1156,13 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
             }
             else{
             }
+        }
+    }
+    else if (a_mods == GLFW_MOD_ALT){
+        // option - Toogle visibility of body frames and softbody skeleton
+        if (a_key == GLFW_KEY_R){
+            printf("Setting world reset flag \n");
+            g_resetFlag = true;
         }
     }
     else{
@@ -1228,7 +1244,7 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
             auto aMap = g_afWorld->getActuatorMap();
             afBaseObjectMap::const_iterator aIt;
             for (aIt = aMap->begin() ; aIt != aMap->end(); ++aIt){
-                ((afActuatorPtr)aIt->second)->toggleVisibility();
+                aIt->second->setVisibleFlag(!aIt->second->getVisibleFlag());
             }
         }
 
@@ -1238,7 +1254,7 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
             auto sMap = g_afWorld->getSensorMap();
             afBaseObjectMap::const_iterator sIt;
             for (sIt = sMap->begin() ; sIt != sMap->end(); ++sIt){
-                ((afSensorPtr)sIt->second)->toggleVisibility();
+                sIt->second->setVisibleFlag(!sIt->second->getVisibleFlag());
             }
         }
 
@@ -1249,6 +1265,7 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
 
         // option - Toggle visibility of label updates
         else if (a_key == GLFW_KEY_U){
+            printf("Toggling upadating the labels\n");
             g_afRenderOptions.m_updateLabels = !g_afRenderOptions.m_updateLabels;
         }
 
@@ -1616,8 +1633,11 @@ cVector3d getRayTo(int x, int y, afCameraPtr a_cameraPtr)
     cVector3d dVert = vertical * 1.f / height;
 
     cVector3d rayTo = rayToCenter - 0.5f * hor + 0.5f * vertical;
-    rayTo += double(g_winWidthRatio*x) * dHor;
-    rayTo -= double(g_winHeightRatio*y) * dVert;
+
+    int windowW, windowH;
+    glfwGetWindowSize(a_cameraPtr->m_window, &windowW, &windowH);
+    rayTo += double(x) * dHor * width / windowW;
+    rayTo -= double(y) * dVert * height / windowH;
 
     return rayTo;
 }

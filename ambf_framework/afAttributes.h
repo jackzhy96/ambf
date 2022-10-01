@@ -516,6 +516,7 @@ public:
         m_stereFocalLength = 0.5;
         m_stereoEyeSeparation = 0.2;
         m_monitorNumber = 0;
+        m_visible = true;
         m_publishImage = false;
         m_publishDepth = false;
         m_publishImageInterval = 1;
@@ -535,6 +536,7 @@ public:
     double m_stereFocalLength;
     vector<string> m_controllingDeviceNames;
     uint m_monitorNumber;
+    bool m_visible;
     bool m_publishImage;
     bool m_publishDepth;
     uint m_publishImageInterval;
@@ -956,6 +958,7 @@ struct afVolumeAttributes: public afBaseObjectAttributes{
     afVolumeSpecificationType m_specificationType;
     afMultiImagesAttributes m_multiImageAttribs;
     afShaderAttributes m_shaderAttribs;
+    afColorAttributes m_colorAttribs;
     afVector3d m_dimensions;
     double m_isosurfaceValue;
     double m_opticalDensity;

@@ -1193,6 +1193,7 @@ bool ADFLoader_1_0::loadCameraAttribs(YAML::Node *a_node, afCameraAttributes *at
     YAML::Node stereoNode = node["stereo"];
     YAML::Node controllingDevicesDataNode = node["controlling devices"];
     YAML::Node monitorNode = node["monitor"];
+    YAML::Node visibleNode = node["visible"];
     YAML::Node publishImageNode = node["publish image"];
     YAML::Node publishImageIntervalNode = node["publish image interval"];
     YAML::Node publishImageResolutionNode = node["publish image resolution"];
@@ -1252,6 +1253,10 @@ bool ADFLoader_1_0::loadCameraAttribs(YAML::Node *a_node, afCameraAttributes *at
         for(uint idx = 0 ; idx < controllingDevicesDataNode.size() ; idx++){
             attribs->m_controllingDeviceNames.push_back( controllingDevicesDataNode[idx].as<string>());
         }
+    }
+
+    if (visibleNode.IsDefined()){
+        attribs->m_visible = visibleNode.as<bool>();
     }
 
     if (publishImageNode.IsDefined()){
@@ -1570,7 +1575,7 @@ bool ADFLoader_1_0::loadSoftBodyAttribs(YAML::Node *a_node, afSoftBodyAttributes
         }
         if (cfg_fixed_nodesNode.IsDefined()){
             for (uint i = 0 ; i < cfg_fixed_nodesNode.size() ; i++){
-                attribs->m_fixedNodes.push_back(i);
+                attribs->m_fixedNodes.push_back(cfg_fixed_nodesNode[i].as<int>());
             }
         }
         if(cfg_clustersNode.IsDefined()){
@@ -2222,6 +2227,7 @@ bool ADFLoader_1_0::loadVolumeAttribs(YAML::Node *a_node, afVolumeAttributes *at
     ADFUtils::getCommunicationAttribsFromNode(&node, &attribs->m_communicationAttribs);
     ADFUtils::getShaderAttribsFromNode(&node, &attribs->m_shaderAttribs);
     ADFUtils::getPluginAttribsFromNode(&node, &attribs->m_pluginAttribs);
+    ADFUtils::getColorAttribsFromNode(&node, &attribs->m_colorAttribs);
 
     if (dimensionsNode.IsDefined()){
         attribs->m_dimensions = ADFUtils::positionFromNode(&dimensionsNode);
@@ -2803,10 +2809,10 @@ bool ADFLoader_1_0::loadWorldAttribs(YAML::Node *a_node, afWorldAttributes *attr
                 )
         {
 
-            attribs->m_skyBoxAttribs.m_leftImageFilepath = localPath / skyBoxNode["left"].as<string>();
             attribs->m_skyBoxAttribs.m_rightImageFilepath = localPath / skyBoxNode["right"].as<string>();
-            attribs->m_skyBoxAttribs.m_topImageFilepath = localPath / skyBoxNode["top"].as<string>();
+            attribs->m_skyBoxAttribs.m_leftImageFilepath = localPath / skyBoxNode["left"].as<string>();
             attribs->m_skyBoxAttribs.m_bottomImageFilepath = localPath / skyBoxNode["bottom"].as<string>();
+            attribs->m_skyBoxAttribs.m_topImageFilepath = localPath / skyBoxNode["top"].as<string>();
             attribs->m_skyBoxAttribs.m_frontImageFilepath = localPath / skyBoxNode["front"].as<string>();
             attribs->m_skyBoxAttribs.m_backImageFilepath = localPath / skyBoxNode["back"].as<string>();
 
