@@ -545,6 +545,10 @@ public:
 
     virtual void reset();
 
+    virtual afBaseObjectAttribsPtr getAttributes(){
+        return m_attributes;
+    }
+
     cVector3d getLocalPos();
 
     cMatrix3d getLocalRot();
@@ -658,9 +662,15 @@ protected:
 
     vector<afBaseObjectPtr> m_childrenObjects;
 
+    virtual void storeAttributes(const afBaseObjectAttribsPtr a_attribs){
+        m_attributes = a_attribs;
+    }
+
 private:
     // Whether or not this object is visible
     bool m_visible = false;
+
+    afBaseObjectAttribsPtr m_attributes;
 };
 
 
@@ -914,6 +924,8 @@ public:
 
     void estimateInertia();
 
+    void setGravity(const cVector3d& a_gravity);
+
     inline double getMass(){return m_mass;}
 
     inline btVector3 getInertia(){return m_inertia;}
@@ -964,6 +976,10 @@ protected:
 
     // Inertia
     btVector3 m_inertia;
+
+    // Gravity
+    cVector3d m_gravity;
+    bool m_overrideGravity;
 };
 
 ///
@@ -1270,6 +1286,8 @@ public:
     virtual bool createFromAttribs(afJointAttributes* a_attribs);
 
     virtual void update(double dt);
+
+    afRigidBodyPtr findConnectingBody(string body_name);
 
     btVector3 getDefaultJointAxisInParent(afJointType a_type);
 
@@ -2581,7 +2599,6 @@ public:
     void clearResetFlag(){m_resetFlag = false;}
 
 protected:
-    afVolumeAttributes m_attribs;
     cVoxelObject* m_voxelObject;
     cMultiImagePtr m_multiImage;
 
