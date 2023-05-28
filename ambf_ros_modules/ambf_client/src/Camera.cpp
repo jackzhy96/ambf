@@ -157,6 +157,48 @@ Camera::Camera(std::string a_name, std::string a_namespace, int a_freq_min, int 
     m_base_prefix = a_namespace + '/' + a_name;
 }
 
+tf::Vector3 Camera::get_pos() {
+    double px = m_State.pose.position.x;
+    double py = m_State.pose.position.y;
+    double pz = m_State.pose.position.z;
+
+    return tf::Vector3(px, py, pz);
+}
+
+tf::Quaternion Camera::get_rot() {
+    tf::Quaternion rot_quat(0.0, 0.0, 0.0, 0.0);
+    tf::quaternionMsgToTF(m_State.pose.orientation, rot_quat);
+
+    return rot_quat;
+}
+
+tf::Vector3 Camera::get_rpy() {
+
+    const tf::Quaternion rot_quat = this->get_rot();
+
+    // the tf::Quaternion has a method to acess roll pitch and yaw
+    double roll, pitch, yaw;
+    tf::Matrix3x3(rot_quat).getRPY(roll, pitch, yaw);
+
+    // the found angles are written in a tf::Vector3
+    tf::Vector3 rot_rpy(0, 0, 0);
+
+    rot_rpy.setX(roll);
+    rot_rpy.setY(pitch);
+    rot_rpy.setZ(yaw);
+
+
+    return rot_rpy;
+}
+
+tf::Pose Camera::get_pose() {
+    tf::Pose pose;
+
+    tf::poseMsgToTF(m_State.pose, pose);
+    return pose;
+}
+
+
 void Camera::set_position(double px, double py, double pz){
     m_trans.setOrigin(tf::Vector3(px, py, pz));
     m_Cmd.pose.position.x = px;

@@ -80,7 +80,7 @@ camera1:
 cameraEndoscope:
   namespace: cameras/
   name: endo_camera
-  location: {x: 0.0, y: 0.0, z: -0.5}
+  location: {x: 0.0, y: 0.0, z: -0.368}
   look at: {x: 0.0, y: 0.0, z: -1.0}
   up: {x: 1.0, y: 0.0, z: 0.0}
   clipping plane: {near: 0.01, far: 10.0}
