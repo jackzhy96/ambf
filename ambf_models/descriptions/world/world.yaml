@@ -91,6 +91,11 @@ cameraEndoscope:
   parent: /ambf/env/ecm/BODY tool link
   multipass: True
   publish image: True
+  publish image interval: 1 # Publish every nth scene update
+  publish depth: True
+  publish depth interval: 10 # Publish every nth scene update
+
+
 
 camera2:
   namespace: cameras/
