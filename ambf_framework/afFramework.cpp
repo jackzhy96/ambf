@@ -1,4 +1,4 @@
-﻿//==============================================================================
+//==============================================================================
 /*
     Software License Agreement (BSD License)
     Copyright (c) 2019-2021, AMBF
@@ -5938,7 +5938,7 @@ double afWorld::getSimulationDeltaTime()
 /// \param a_loopFreq
 /// \param a_numDevices
 ///
-void afWorld::updateDynamics(double a_interval, double a_wallClock, double a_loopFreq, int a_numDevices)
+void afWorld::updateDynamics(double a_interval, int a_numDevices)
 {
     // sanity check
     if (a_interval <= 0) { return; }
@@ -5962,10 +5962,8 @@ void afWorld::updateDynamics(double a_interval, double a_wallClock, double a_loo
         }
     }
 
-    m_physicsFreq = a_loopFreq;
+    m_freqCounterPhysics.signal(1);
     m_numDevices = a_numDevices;
-
-    m_wallClock = a_wallClock;
 
     double dt = getSimulationDeltaTime();
 
@@ -6136,7 +6134,7 @@ void afWorld::removeSceneObjectFromWorld(cGenericObject *a_cObject)
 /// \return
 ///
 double afWorld::computeStepSize(bool adjust_intetration_steps){
-    double step_size = g_wallClock.getCurrentTimeSeconds() - getSimulationTime();
+    double step_size = m_wallClock.getCurrentTimeSeconds() - getSimulationTime();
     if (adjust_intetration_steps){
         int min_iterations = 2;
         if (step_size >= getIntegrationTimeStep() * min_iterations){
@@ -7309,11 +7307,11 @@ void afCamera::updateLabels(afRenderOptions &options)
     // We should prioritize the update of freqeunt labels
 
     // update haptic and graphic rate data
-    string wallTimeStr = "Wall Time: " + cStr(m_afWorld->g_wallClock.getCurrentTimeSeconds(), 2) + " s";
+    string wallTimeStr = "Wall Time: " + cStr(m_afWorld->m_wallClock.getCurrentTimeSeconds(), 2) + " s";
     string simTimeStr = "Sim Time: " + cStr(m_afWorld->getSimulationTime(), 2) + " s";
 
     string graphicsFreqStr = "Gfx (" + cStr(m_afWorld->m_freqCounterGraphics.getFrequency(), 0) + " Hz)";
-    string hapticFreqStr = "Phx (" + cStr(m_afWorld->m_freqCounterHaptics.getFrequency(), 0) + " Hz)";
+    string hapticFreqStr = "Phx (" + cStr(m_afWorld->m_freqCounterPhysics.getFrequency(), 0) + " Hz)";
 
     string timeLabelStr = wallTimeStr + " / " + simTimeStr;
     string dynHapticFreqLabelStr = graphicsFreqStr + " / " + hapticFreqStr;
@@ -7610,7 +7608,11 @@ void afCamera::enableDepthPublishing(afImageResolutionAttribs* imageAttribs, afN
 
     // Set up the frame buffer
     m_depthBuffer = new cFrameBuffer();
-
+    
+#ifndef GL_RGBA32F
+#define GL_RGBA32F GL_RGBA32F_ARB
+#endif
+    
     m_depthBuffer->setup(m_camera, imageAttribs->m_width, imageAttribs->m_height, true, false, GL_RGBA32F);
 
     m_depthPC.setup(imageAttribs->m_width, imageAttribs->m_height, 3);
