@@ -121,6 +121,12 @@ class Camera: public CameraRosCom, public CameraParams{
 public:
     Camera(std::string a_name, std::string a_namespace, int a_freq_min, int a_freq_max, double time_out);
     ambf_msgs::CameraCmd get_command();
+
+    tf::Vector3 get_pos();
+    tf::Quaternion get_rot();
+    tf::Vector3 get_rpy();
+    tf::Pose get_pose();
+    
     void set_position(double px, double py, double pz);
     void set_orientation(double roll, double pitch, double yaw);
     void set_orientation(double qx, double qy, double qz, double qw);
